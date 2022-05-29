@@ -5,5 +5,6 @@ uniform mat4 mProjection;
 uniform mat4 mTranslation;
 
 void main() { 
-	gl_Position = mProjection * vec4(vPosition, 1.0);
+	// TODO: add ranslation
+	gl_Position = vec4(vPosition, 1.0) * mTranslation * mProjection;
 }

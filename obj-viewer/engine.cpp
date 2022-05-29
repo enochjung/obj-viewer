@@ -97,6 +97,9 @@ namespace obj_viewer {
 	void engine::draw(std::unique_ptr<object> obj) {
 		_obj = std::move(obj);
 		glBufferData(GL_ARRAY_BUFFER, _obj->points.size() * sizeof(_obj->points[0]), &_obj->points[0], GL_STATIC_DRAW);
+
+		std::unique_ptr<glm::mat4> mTranslation = _obj->centralize();
+		glUniformMatrix4fv(_translation_loc, 1, GL_FALSE, value_ptr(*mTranslation));
 	}
 
 	int engine::points_num() const {
