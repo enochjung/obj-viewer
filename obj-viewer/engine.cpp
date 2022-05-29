@@ -12,6 +12,7 @@
 #include <iostream>
 #include <numeric>
 #include <ranges>
+#include <cmath>
 
 #define BUFFER_OFFSET(offset) ((GLvoid*)(offset))
 
@@ -19,11 +20,17 @@ GLuint InitShader(const char* vShaderFile, const char* fShaderFiie);
 
 namespace obj_viewer {
 
+	static bool mouse_pressing;
+	static std::unique_ptr<glm::vec3> last_cursor_vec3;
+
 	static void display_callback();
 	static void reshape_callback(int width, int height);
 	static void keyboard_callback(unsigned char key, int x, int y);
+	static void mouse_button_callback(int button, int state, int x, int y);
+	static void mouse_motion_callback(int x, int y);
+	static std::unique_ptr<glm::vec3> point_to_trackball_vec3(int x, int y);
 
-	engine::engine() : _projection_loc(0), _translation_loc(0) {
+	engine::engine() : _projection_loc(0), _model_loc(0) {
 		// nop
 	}
 
@@ -43,6 +50,8 @@ namespace obj_viewer {
 		glutDisplayFunc(display_callback);
 		glutReshapeFunc(reshape_callback);
 		glutKeyboardFunc(keyboard_callback);
+		glutMouseFunc(mouse_button_callback);
+		glutMotionFunc(mouse_motion_callback);
 
 		GLuint vao;
 		glGenVertexArrays(1, &vao);
@@ -51,11 +60,6 @@ namespace obj_viewer {
 		GLuint buffer;
 		glGenBuffers(1, &buffer);
 		glBindBuffer(GL_ARRAY_BUFFER, buffer);
-		//glBufferData(GL_ARRAY_BUFFER, _points.value + sizeof(colors), NULL, GL_STATIC_DRAW);
-		/*
-		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(points), points);
-		glBufferSubData(GL_ARRAY_BUFFER, sizeof(points), sizeof(colors), colors);
-		*/
 
 		GLuint program = InitShader("vshader.glsl", "fshader.glsl");
 		glUseProgram(program);
@@ -65,7 +69,7 @@ namespace obj_viewer {
 		glVertexAttribPointer(position_loc, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
 
 		_projection_loc = glGetUniformLocation(program, "mProjection");
-		_translation_loc = glGetUniformLocation(program, "mTranslation");
+		_model_loc = glGetUniformLocation(program, "mModel");
 
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glClearColor(1.0, 1.0, 1.0, 1.0);
@@ -73,59 +77,51 @@ namespace obj_viewer {
 	}
 
 	void engine::run() {
-
-		/*
-		GLuint vColor = glGetAttribLocation(program, "vColor");
-		glEnableVertexAttribArray(vColor);
-		glVertexAttribPointer(vColor, 4, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(sizeof(points)));
-		*/
-
-		// rotation matrix
-		/*
-		rotation_loc = glGetUniformLocation(program, "mRotation");
-		glUniformMatrix4fv(rotation_loc, 1, GL_FALSE, value_ptr(mRotation));
-		*/
-
-		/*
-		glutIdleFunc(spinCube);
-		glutMouseFunc(mouse);
-		*/
-
 		glutMainLoop();
 	}
 
 	void engine::draw(std::unique_ptr<object> obj) {
-		_obj = std::move(obj);
-		glBufferData(GL_ARRAY_BUFFER, _obj->points.size() * sizeof(_obj->points[0]), &_obj->points[0], GL_STATIC_DRAW);
-
-		std::unique_ptr<glm::mat4> mTranslation = _obj->centralize();
-		glUniformMatrix4fv(_translation_loc, 1, GL_FALSE, value_ptr(*mTranslation));
+		glBufferData(GL_ARRAY_BUFFER, obj->points.size() * sizeof(obj->points[0]), &obj->points[0], GL_STATIC_DRAW);
+		this->obj = std::move(obj);
 	}
 
 	int engine::points_num() const {
-		return _obj != nullptr ? _obj->points.size() : 0;
+		return this->obj != nullptr ? this->obj->points.size() : 0;
 	}
 
-	GLuint engine::translation_loc() const {
-		return _translation_loc;
+	GLuint engine::model_loc() const {
+		return _model_loc;
 	}
 
 	GLuint engine::projection_loc() const {
 		return _projection_loc;
 	}
 
+	std::pair<int, int> engine::window_size() const {
+		int width = glutGet(GLUT_WINDOW_WIDTH);
+		int height = glutGet(GLUT_WINDOW_HEIGHT);
+		return std::pair<int, int>(width, height);
+	}
+
 	static void display_callback() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		int points_num = engine::instance().points_num();
+		const engine& engine = engine::instance();
+		const auto& obj = engine.obj;
+		const std::unique_ptr<glm::mat4> m_scale = obj->scale_mat();
+		const std::unique_ptr<glm::mat4> m_translation = obj->translation_mat();
+		const std::unique_ptr<glm::mat4> m_orientation = obj->orientation_mat();
+		const glm::mat4 m_model = (*m_orientation) * (*m_translation) * (*m_scale);
+		glUniformMatrix4fv(engine.model_loc(), 1, GL_FALSE, value_ptr(m_model));
+
+		const int points_num = engine.points_num();
 		glDrawArrays(GL_TRIANGLES, 0, points_num);
 
 		glutSwapBuffers();
 	}
 
-	static void reshape_callback(int width, int height)
-	{
-		const int view_size = 80;
+	static void reshape_callback(int width, int height) {
+		const int view_size = 1;
 
 		glViewport(0, 0, width, height);
 
@@ -135,13 +131,11 @@ namespace obj_viewer {
 
 		GLfloat aspect = GLfloat(width == 0 ? 1 : width) / (height == 0 ? 1 : height);
 
-		if (aspect > 1)
-		{
+		if (aspect > 1) {
 			left *= aspect;
 			right *= aspect;
 		}
-		else
-		{
+		else {
 			bottom /= aspect;
 			top /= aspect;
 		}
@@ -154,5 +148,58 @@ namespace obj_viewer {
 	static void keyboard_callback(unsigned char key, int x, int y) {
 		if (key == 27)
 			exit(0);
+	}
+
+	static void mouse_button_callback(int button, int state, int x, int y) {
+		if (button == GLUT_LEFT_BUTTON) {
+			if (state == GLUT_DOWN) {
+				mouse_pressing = true;
+				last_cursor_vec3 = point_to_trackball_vec3(x, y);
+			} else {
+				mouse_pressing = false;
+			}
+		}
+	}
+
+	static void mouse_motion_callback(int x, int y) {
+		if (!mouse_pressing)
+			return;
+
+		std::unique_ptr<glm::vec3> cursor_vec3 = point_to_trackball_vec3(x, y);
+		const glm::vec3 movement = *cursor_vec3 - *last_cursor_vec3;
+		float distance_pow = dot(movement, movement);
+
+		if (distance_pow) {
+			const float angle = (3.141592f / 2.0f) * sqrt(distance_pow);
+			const glm::vec3 axis = glm::cross(*last_cursor_vec3, *cursor_vec3);
+			const glm::vec3 norm = axis / sqrt(dot(axis, axis));
+			const glm::vec4 quaternion = {
+				cos(angle / 2),
+				sin(angle / 2) * norm.x,
+				sin(angle / 2) * norm.y,
+				sin(angle / 2) * norm.z
+			};
+			engine::instance().obj.get()->rotate(quaternion);
+
+			last_cursor_vec3 = std::move(cursor_vec3);
+			glutPostRedisplay();
+		}
+	}
+
+	static std::unique_ptr<glm::vec3> point_to_trackball_vec3(int x, int y) {
+		int width, height;
+		std::tie(width, height) = engine::instance().window_size();
+
+		const int criteria = std::min(width, height);
+
+		glm::vec3 v;
+		v[0] = (2.0f * x - width) / criteria;
+		v[1] = (height - 2.0f * y) / criteria;
+
+		float distance = sqrt(v[0] * v[0] + v[1] * v[1]);
+		v[2] = distance < 1.0f ? cos((3.141592f / 2.0f) * distance) : 0.0f;
+		v *= 1.0 / sqrt(glm::dot(v, v));
+
+		return std::make_unique<glm::vec3>(v);
 	}
 }

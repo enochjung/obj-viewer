@@ -14,9 +14,17 @@ namespace obj_viewer {
 		std::vector<glm::vec3> points;
 
 		object(const std::vector<Mesh>& meshes);
-		std::unique_ptr<glm::mat4> centralize() const;
+		void rotate(const glm::vec4& quaternion);
+
+		std::unique_ptr<glm::mat4> scale_mat() const;
+		std::unique_ptr<glm::mat4> translation_mat() const;
+		std::unique_ptr<glm::mat4> orientation_mat() const;
 
 	private:
+		float _scale;
+		glm::vec3 _translation;
+		glm::vec4 _quaternion;
+
 		std::pair<glm::vec3, glm::vec3> minmax() const;
 	};
 }

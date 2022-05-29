@@ -2,9 +2,8 @@
 
 in vec3 vPosition;
 uniform mat4 mProjection;
-uniform mat4 mTranslation;
+uniform mat4 mModel;
 
 void main() { 
-	// TODO: add ranslation
-	gl_Position = vec4(vPosition, 1.0) * mTranslation * mProjection;
+	gl_Position = vec4(vPosition, 1.0) * mModel * mProjection;
 }

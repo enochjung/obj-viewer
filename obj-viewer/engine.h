@@ -15,18 +15,20 @@ namespace obj_viewer {
 	public:
 		static engine& instance();
 
+		std::unique_ptr<object> obj;
+
 		void init(int* argc, char** argv, const std::string& title, int width, int height);
 		void draw(std::unique_ptr<object> obj);
 		void run();
 
 		int points_num() const;
 		GLuint projection_loc() const;
-		GLuint translation_loc() const;
+		GLuint model_loc() const;
+		std::pair<int, int> window_size() const;
 
 	private:
-		std::unique_ptr<object> _obj;
 		GLuint _projection_loc;
-		GLuint _translation_loc;
+		GLuint _model_loc;
 
 		engine();
 	};
