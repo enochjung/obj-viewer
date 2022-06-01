@@ -71,7 +71,7 @@ namespace obj_viewer {
 		_projection_loc = glGetUniformLocation(program, "mProjection");
 		_model_loc = glGetUniformLocation(program, "mModel");
 
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glClearColor(1.0, 1.0, 1.0, 1.0);
 		glEnable(GL_DEPTH_TEST);
 	}

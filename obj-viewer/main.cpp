@@ -11,7 +11,7 @@ using namespace obj_viewer;
 
 int main(int argc, char** argv) {
 	Loader obj_loader = Loader();
-	if (!obj_loader.LoadFile("../sample_obj/fox.obj")) {
+	if (!obj_loader.LoadFile("../sample_obj/tree.obj")) {
 		std::cout << "failed to read obj file.";
 		return 1;
 	}
