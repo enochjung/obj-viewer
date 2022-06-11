@@ -1,29 +1,38 @@
 #pragma once
 
-#include <memory>
-#include <utility>
-#include <GL/glew.h>
-#include <glm/vec3.hpp>
-#include <glm/mat4x4.hpp>
+#include <vector> // vector
+#include <memory> // unique_ptr
+#include <GL/glew.h> // GLuint
+#include <glm/vec3.hpp> // vec3
+#include <glm/gtx/quaternion.hpp> // quat
 #include "OBJ_Loader.h"
 
 namespace obj_viewer {
 
-	class object {
+	class mesh {
 	public:
+		GLuint vao;
+		GLuint vbo;
 		std::vector<glm::vec3> points;
 
-		object(const std::vector<Mesh>& meshes);
-		void rotate(const glm::vec4& quaternion);
+		mesh(const std::vector<glm::vec3> points);
+	};
 
-		std::unique_ptr<glm::mat4> scale_mat() const;
-		std::unique_ptr<glm::mat4> translation_mat() const;
-		std::unique_ptr<glm::mat4> orientation_mat() const;
+	class object {
+	public:
+		std::vector<mesh> meshes;
+
+		object(const std::vector<obj_loader::Mesh>& meshes);
+		void rotate(const glm::quat& quaternion);
+
+		std::unique_ptr<glm::vec3> scale() const;
+		std::unique_ptr<glm::vec3> position() const;
+		std::unique_ptr<glm::quat> orientation() const;
 
 	private:
-		float _scale;
-		glm::vec3 _translation;
-		glm::vec4 _quaternion;
+		glm::vec3 _scale;
+		glm::vec3 _position;
+		glm::quat _orientation;
 
 		std::pair<glm::vec3, glm::vec3> minmax() const;
 	};

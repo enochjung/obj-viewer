@@ -1,29 +1,35 @@
 #include "object.h"
 
-#include <ranges>
-#include <numeric>
-#include <algorithm>
-#include <iostream>
+#include <ranges> // ranges
+#include <algorithm> // min max
+#include <iostream> // cout
 
 namespace obj_viewer {
 
-	object::object(const std::vector<Mesh>& meshes) {
+	mesh::mesh(const std::vector<glm::vec3> points) {
+		this->points.assign(points.begin(), points.end());
 
-		const auto sizes = meshes
-			| std::views::transform([](const Mesh& mesh) { return mesh.Indices.size(); });
-		const size_t all_points_num = std::accumulate(sizes.begin(), sizes.end(), 0);
-		this->points = std::vector<glm::vec3>(all_points_num);
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao); 
+		
+		glGenBuffers(1, &vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * this->points.size(), &(this->points[0]), GL_STATIC_DRAW);
 
-		int points_index = 0;
-		for (int i = 0; i < (int)meshes.size(); ++i) {
-			const Mesh& mesh = meshes[i];
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), 0);
+	}
 
-			const auto points = mesh.Indices
-				| std::views::transform([&mesh](unsigned int index) { return mesh.Vertices[index].Position; })
-				| std::views::transform([](Vector3 position) { return glm::vec3(position.X, position.Y, position.Z); });
+	object::object(const std::vector<obj_loader::Mesh>& meshes) {
+		for (const obj_loader::Mesh m : meshes) {
+			const size_t indices_size = m.Indices.size();
+			const auto r_points = m.Indices
+				| std::views::transform([&m](unsigned int index) { return m.Vertices[index].Position; })
+				| std::views::transform([](obj_loader::Vector3 position) { return glm::vec3(position.X, position.Y, position.Z); });
+			const std::vector<glm::vec3> points(r_points.begin(), r_points.end());
 
-			for (const glm::vec3& point : points)
-				this->points[points_index++] = point;
+			const mesh my_mesh(points);
+			this->meshes.push_back(my_mesh);
 		}
 
 		const auto minmax = this->minmax();
@@ -31,54 +37,31 @@ namespace obj_viewer {
 		const float sx = 2.0f / (minmax.second.x - minmax.first.x);
 		const float sy = 2.0f / (minmax.second.y - minmax.first.y);
 		const float sz = 2.0f / (minmax.second.z - minmax.first.z);
-		_scale = std::min({ sx, sy, sz });
+		const float scale = std::min({ sx, sy, sz });
+		_scale = { scale, scale, scale };
 
 		const float dx = (minmax.first.x + minmax.second.x) * -0.5f;
 		const float dy = (minmax.first.y + minmax.second.y) * -0.5f;
 		const float dz = (minmax.first.z + minmax.second.z) * -0.5f;
-		_translation = { dx, dy, dz };
+		_position = { dx, dy, dz };
 
-		_quaternion = { 1.0f, 0.0f, 0.0f, 0.0f };
+		_orientation = { 1.0f, 0.0f, 0.0f, 0.0f };
 	}
 
-	void object::rotate(const glm::vec4& quaternion) {
-		const glm::vec4& a = _quaternion;
-		const glm::vec4& b = quaternion;
-		const glm::vec3 aa = { a.y, a.z, a.w };
-		const glm::vec3 bb = { b.y, b.z, b.w };
-		const glm::vec3 cc = a.x * bb + b.x * aa + glm::cross(bb, aa);
-		_quaternion = { a.x * b.x - dot(aa, bb), cc.x, cc.y, cc.z };
+	void object::rotate(const glm::quat& rotation) {
+		_orientation *= rotation;
 	}
 
-	std::unique_ptr<glm::mat4> object::scale_mat() const {
-		const glm::mat4 result = {
-			{_scale, 0, 0, 0},
-			{0, _scale, 0, 0},
-			{0, 0, _scale, 0},
-			{0, 0, 0, 1} };
-		return std::make_unique<glm::mat4>(result);
+	std::unique_ptr<glm::vec3> object::scale() const {
+		return std::make_unique<glm::vec3>(_scale);
 	}
 
-	std::unique_ptr<glm::mat4> object::translation_mat() const {
-		const glm::mat4 result = {
-			{1, 0, 0, _translation.x},
-			{0, 1, 0, _translation.y},
-			{0, 0, 1, _translation.z},
-			{0, 0, 0, 1} };
-		return std::make_unique<glm::mat4>(result);
+	std::unique_ptr<glm::vec3> object::position() const {
+		return std::make_unique<glm::vec3>(_position);
 	}
 
-	std::unique_ptr<glm::mat4> object::orientation_mat() const {
-		const float a = _quaternion.x;
-		const float x = _quaternion.y;
-		const float y = _quaternion.z;
-		const float z = _quaternion.w;
-		const glm::mat4 result = {
-			{a * a + x * x - y * y - z * z, 2 * x * y - 2 * a * z, 2 * x * z + 2 * a * y, 0},
-			{2 * x * y + 2 * a * z, a * a - x * x + y * y - z * z, 2 * y * z - 2 * a * x, 0},
-			{2 * x * z - 2 * a * y, 2 * y * z + 2 * a * x, a * a - x * x - y * y + z * z, 0},
-			{0, 0, 0, 1} };
-		return std::make_unique<glm::mat4>(result);
+	std::unique_ptr<glm::quat> object::orientation() const {
+		return std::make_unique<glm::quat>(_orientation);
 	}
 
 	std::pair<glm::vec3, glm::vec3> object::minmax() const {
@@ -88,20 +71,22 @@ namespace obj_viewer {
 		if (initialized)
 			return result;
 
-		for (const glm::vec3& point : this->points) {
-			if (!initialized) {
-				initialized = true;
-				result.first.x = result.second.x = point.x;
-				result.first.y = result.second.y = point.y;
-				result.first.z = result.second.z = point.z;
-			}
-			else {
-				result.first.x = std::min(result.first.x, point.x);
-				result.first.y = std::min(result.first.y, point.y);
-				result.first.z = std::min(result.first.z, point.z);
-				result.second.x = std::max(result.second.x, point.x);
-				result.second.y = std::max(result.second.y, point.y);
-				result.second.z = std::max(result.second.z, point.z);
+		for (const mesh m : meshes) {
+			for (const glm::vec3& point : m.points) {
+				if (!initialized) {
+					initialized = true;
+					result.first.x = result.second.x = point.x;
+					result.first.y = result.second.y = point.y;
+					result.first.z = result.second.z = point.z;
+				}
+				else {
+					result.first.x = std::min(result.first.x, point.x);
+					result.first.y = std::min(result.first.y, point.y);
+					result.first.z = std::min(result.first.z, point.z);
+					result.second.x = std::max(result.second.x, point.x);
+					result.second.y = std::max(result.second.y, point.y);
+					result.second.z = std::max(result.second.z, point.z);
+				}
 			}
 		}
 		return result;

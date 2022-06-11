@@ -2,17 +2,18 @@
 
 #include <GL/glew.h>
 #include <GL/glut.h>
-#include <glm/vec4.hpp>
-#include <glm/mat4x4.hpp>
+#include <glm/vec3.hpp> // vec3
+#include <glm/mat4x4.hpp> // mat4
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtx/transform.hpp> // scale translate
+#include <glm/gtx/quaternion.hpp> // quat
+//#include "OBJ_Loader.h"
 
-#include <iostream>
+#include <iostream> // cout
 #include <numeric>
 #include <ranges>
-#include <cmath>
+#include <cmath> // sin cos
 
 #define BUFFER_OFFSET(offset) ((GLvoid*)(offset))
 
@@ -30,7 +31,7 @@ namespace obj_viewer {
 	static void mouse_motion_callback(int x, int y);
 	static std::unique_ptr<glm::vec3> point_to_trackball_vec3(int x, int y);
 
-	engine::engine() : _projection_loc(0), _model_loc(0) {
+	engine::engine() : _model_view_loc(0), _projection_loc(0) {
 		// nop
 	}
 
@@ -64,33 +65,24 @@ namespace obj_viewer {
 		GLuint program = InitShader("vshader.glsl", "fshader.glsl");
 		glUseProgram(program);
 
-		GLuint position_loc = glGetAttribLocation(program, "vPosition");
-		glEnableVertexAttribArray(position_loc);
-		glVertexAttribPointer(position_loc, 3, GL_FLOAT, GL_FALSE, 0, BUFFER_OFFSET(0));
-
+		_model_view_loc = glGetUniformLocation(program, "mModelView");
 		_projection_loc = glGetUniformLocation(program, "mProjection");
-		_model_loc = glGetUniformLocation(program, "mModel");
 
-		//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glClearColor(1.0, 1.0, 1.0, 1.0);
 		glEnable(GL_DEPTH_TEST);
+	}
+
+	void engine::add_object(std::unique_ptr<object> obj) {
+		this->objs.push_back(std::move(obj));
 	}
 
 	void engine::run() {
 		glutMainLoop();
 	}
 
-	void engine::draw(std::unique_ptr<object> obj) {
-		glBufferData(GL_ARRAY_BUFFER, obj->points.size() * sizeof(obj->points[0]), &obj->points[0], GL_STATIC_DRAW);
-		this->obj = std::move(obj);
-	}
-
-	int engine::points_num() const {
-		return this->obj != nullptr ? this->obj->points.size() : 0;
-	}
-
-	GLuint engine::model_loc() const {
-		return _model_loc;
+	GLuint engine::model_view_loc() const {
+		return _model_view_loc;
 	}
 
 	GLuint engine::projection_loc() const {
@@ -106,16 +98,27 @@ namespace obj_viewer {
 	static void display_callback() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		const engine& engine = engine::instance();
-		const auto& obj = engine.obj;
-		const std::unique_ptr<glm::mat4> m_scale = obj->scale_mat();
-		const std::unique_ptr<glm::mat4> m_translation = obj->translation_mat();
-		const std::unique_ptr<glm::mat4> m_orientation = obj->orientation_mat();
-		const glm::mat4 m_model = (*m_orientation) * (*m_translation) * (*m_scale);
-		glUniformMatrix4fv(engine.model_loc(), 1, GL_FALSE, value_ptr(m_model));
+		glMatrixMode(GL_MODELVIEW);
 
-		const int points_num = engine.points_num();
-		glDrawArrays(GL_TRIANGLES, 0, points_num);
+		const engine& engine = engine::instance();
+		const auto model_view_loc = engine.model_view_loc();
+		// TODO: add view matrix
+
+		for (auto& obj : engine.objs) {
+			const auto m_scale = glm::scale(*(obj->scale()));
+			const auto m_translation = glm::translate(glm::mat4(1), *(obj->position()));
+			const auto m_rotation = glm::toMat4(*(obj->orientation()));
+			const auto m_model = m_rotation * m_scale * m_translation;
+
+			for (auto& mesh : obj.get()->meshes) {
+				glBindVertexArray(mesh.vao);
+
+				glUniformMatrix4fv(model_view_loc, 1, GL_FALSE, glm::value_ptr(m_model));
+				// TODO: bind view matrix
+
+				glDrawArrays(GL_TRIANGLES, 0, mesh.points.size());
+			}
+		}
 
 		glutSwapBuffers();
 	}
@@ -173,13 +176,9 @@ namespace obj_viewer {
 			const float angle = (3.141592f / 2.0f) * sqrt(distance_pow);
 			const glm::vec3 axis = glm::cross(*last_cursor_vec3, *cursor_vec3);
 			const glm::vec3 norm = axis / sqrt(dot(axis, axis));
-			const glm::vec4 quaternion = {
-				cos(angle / 2),
-				sin(angle / 2) * norm.x,
-				sin(angle / 2) * norm.y,
-				sin(angle / 2) * norm.z
-			};
-			engine::instance().obj.get()->rotate(quaternion);
+			const glm::quat quaternion = glm::angleAxis(angle, norm);
+			engine::instance().objs[0].get()->rotate(quaternion);
+			// TODO: rotate view
 
 			last_cursor_vec3 = std::move(cursor_vec3);
 			glutPostRedisplay();

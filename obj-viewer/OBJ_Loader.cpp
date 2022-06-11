@@ -10,7 +10,7 @@
 #include <fstream>
 #include <math.h>
 
-namespace obj_viewer {
+namespace obj_loader {
 
 	Vector2::Vector2() {
 		X = 0.0f;

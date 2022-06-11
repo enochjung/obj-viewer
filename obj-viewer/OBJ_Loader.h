@@ -8,7 +8,7 @@
 #include <string>
 //#define OBJL_CONSOLE_OUTPUT
 
-namespace obj_viewer {
+namespace obj_loader {
 
 	struct Vector2 {
 		float X;
