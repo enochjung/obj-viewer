@@ -23,7 +23,7 @@ namespace obj_viewer {
 		std::vector<mesh> meshes;
 
 		object(const std::vector<obj_loader::Mesh>& meshes);
-		void rotate(const glm::quat& quaternion);
+		void rotate(const glm::quat& rotation);
 
 		std::unique_ptr<glm::vec3> scale() const;
 		std::unique_ptr<glm::vec3> position() const;
