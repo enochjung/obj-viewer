@@ -24,6 +24,7 @@ namespace obj_viewer {
 	static bool mouse_pressing;
 	static std::unique_ptr<glm::vec3> last_cursor_vec3;
 	static glm::quat camera_orientation = { 1.0f, 0.0f, 0.0f, 0.0f };
+	static glm::vec3 light_position = { 10.0f, 10.0f, 10.0f };
 
 	static void display_callback();
 	static void idle_callback();
@@ -68,12 +69,18 @@ namespace obj_viewer {
 		GLuint program = InitShader("vshader.glsl", "fshader.glsl");
 		glUseProgram(program);
 
-		_model_view_loc = glGetUniformLocation(program, "mModelView");
-		_projection_loc = glGetUniformLocation(program, "mProjection");
+		_model_view_loc = glGetUniformLocation(program, "ModelView");
+		_model_loc = glGetUniformLocation(program, "Model");
+		_view_loc = glGetUniformLocation(program, "View");
+		_projection_loc = glGetUniformLocation(program, "Projection");
+		_light_loc = glGetUniformLocation(program, "lightPosition");
 
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		glUniformMatrix4fv(_light_loc, 1, GL_FALSE, glm::value_ptr(light_position));
+
+		//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glClearColor(1.0, 1.0, 1.0, 1.0);
 		glEnable(GL_DEPTH_TEST);
+		glEnable(GL_TEXTURE_2D);
 	}
 
 	void engine::add_object(std::unique_ptr<object> obj) {
@@ -88,8 +95,20 @@ namespace obj_viewer {
 		return _model_view_loc;
 	}
 
+	GLuint engine::model_loc() const {
+		return _model_loc;
+	}
+
+	GLuint engine::view_loc() const {
+		return _view_loc;
+	}
+
 	GLuint engine::projection_loc() const {
 		return _projection_loc;
+	}
+
+	GLuint engine::light_loc() const {
+		return _light_loc;
 	}
 
 	std::pair<int, int> engine::window_size() const {
@@ -105,6 +124,8 @@ namespace obj_viewer {
 
 		const engine& engine = engine::instance();
 		const auto model_view_loc = engine.model_view_loc();
+		const auto model_loc = engine.model_loc();
+		const auto view_loc = engine.view_loc();
 
 		const auto camera_origin_position = glm::vec3(0.0f, 0.0f, 4.0f);
 		const auto m_camera_origin_view = glm::lookAt(camera_origin_position, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -118,12 +139,14 @@ namespace obj_viewer {
 			const auto m_model = m_rotation * m_scale * m_translation;
 			const auto m_model_view = m_view * m_model;
 
+			glUniformMatrix4fv(model_view_loc, 1, GL_FALSE, glm::value_ptr(m_model_view));
+			glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm::value_ptr(m_model));
+			glUniformMatrix4fv(view_loc, 1, GL_FALSE, glm::value_ptr(m_view));
+
 			for (auto& mesh : obj.get()->meshes) {
 				glBindVertexArray(mesh.vao);
-				
-				glUniformMatrix4fv(model_view_loc, 1, GL_FALSE, glm::value_ptr(m_model_view));
 
-				glDrawArrays(GL_TRIANGLES, 0, mesh.points.size());
+				glDrawArrays(GL_TRIANGLES, 0, mesh.vertices.positions.size());
 			}
 		}
 

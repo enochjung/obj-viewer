@@ -6,30 +6,71 @@
 
 namespace obj_viewer {
 
-	mesh::mesh(const std::vector<glm::vec3> points) {
-		this->points.assign(points.begin(), points.end());
+	vertices::vertices(size_t size) : positions(size), normals(size), texture_coordinates(size) {
+		// nop
+	}
 
+	mesh::mesh(size_t vertices_size) : vao(0), vbo(0), vertices(vertices_size) {
+	}
+
+	void mesh::bind() {
 		glGenVertexArrays(1, &vao);
 		glBindVertexArray(vao); 
 		
 		glGenBuffers(1, &vbo);
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * this->points.size(), &(this->points[0]), GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * vertices.positions.size(), &vertices.positions[0], GL_STATIC_DRAW);
 
 		glEnableVertexAttribArray(0);
 		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(glm::vec3), 0);
 	}
 
-	object::object(const std::vector<obj_loader::Mesh>& meshes) {
-		for (const obj_loader::Mesh m : meshes) {
-			const size_t indices_size = m.Indices.size();
-			const auto r_points = m.Indices
-				| std::views::transform([&m](unsigned int index) { return m.Vertices[index].Position; })
-				| std::views::transform([](obj_loader::Vector3 position) { return glm::vec3(position.X, position.Y, position.Z); });
-			const std::vector<glm::vec3> points(r_points.begin(), r_points.end());
+	object::object(const tinyobj::attrib_t& attrib, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials) {
+		for (const tinyobj::shape_t& shape : shapes) {
+			const size_t vertices_size = shape.mesh.num_face_vertices.size() * 3;
+			mesh mesh(vertices_size);
 
-			const mesh my_mesh(points);
-			this->meshes.push_back(my_mesh);
+			size_t index_offset = 0;
+			for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++) {
+				size_t fv = size_t(shape.mesh.num_face_vertices[f]);
+
+				// Loop over vertices in the face.
+				for (size_t v = 0; v < fv; v++) {
+					// access to vertex
+					tinyobj::index_t idx = shape.mesh.indices[index_offset + v];
+					tinyobj::real_t vx = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
+					tinyobj::real_t vy = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
+					tinyobj::real_t vz = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
+					mesh.vertices.positions[index_offset + v] = glm::vec3(vx, vy, vz);
+
+					// Check if `normal_index` is zero or positive. negative = no normal data
+					if (idx.normal_index >= 0) {
+						tinyobj::real_t nx = attrib.normals[3 * size_t(idx.normal_index) + 0];
+						tinyobj::real_t ny = attrib.normals[3 * size_t(idx.normal_index) + 1];
+						tinyobj::real_t nz = attrib.normals[3 * size_t(idx.normal_index) + 2];
+						mesh.vertices.normals[index_offset + v] = glm::vec3(nx, ny, nz);
+					}
+
+					// Check if `texcoord_index` is zero or positive. negative = no texcoord data
+					if (idx.texcoord_index >= 0) {
+						tinyobj::real_t tx = attrib.texcoords[2 * size_t(idx.texcoord_index) + 0];
+						tinyobj::real_t ty = attrib.texcoords[2 * size_t(idx.texcoord_index) + 1];
+						mesh.vertices.texture_coordinates[index_offset + v] = glm::vec2(tx, ty);
+					}
+
+					// Optional: vertex colors
+					// tinyobj::real_t red   = attrib.colors[3*size_t(idx.vertex_index)+0];
+					// tinyobj::real_t green = attrib.colors[3*size_t(idx.vertex_index)+1];
+					// tinyobj::real_t blue  = attrib.colors[3*size_t(idx.vertex_index)+2];
+				}
+				index_offset += fv;
+
+				// per-face material
+				//shape.mesh.material_ids[f];
+			}
+
+			mesh.bind();
+			this->meshes.push_back(mesh);
 		}
 
 		const auto minmax = this->minmax();
@@ -72,7 +113,7 @@ namespace obj_viewer {
 			return result;
 
 		for (const mesh m : meshes) {
-			for (const glm::vec3& point : m.points) {
+			for (const glm::vec3& point : m.vertices.positions) {
 				if (!initialized) {
 					initialized = true;
 					result.first.x = result.second.x = point.x;
