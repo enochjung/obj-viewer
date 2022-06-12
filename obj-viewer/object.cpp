@@ -49,7 +49,7 @@ namespace obj_viewer {
 	}
 
 	void object::rotate(const glm::quat& rotation) {
-		_orientation *= rotation;
+		_orientation = rotation * _orientation;
 	}
 
 	std::unique_ptr<glm::vec3> object::scale() const {

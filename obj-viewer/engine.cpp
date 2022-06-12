@@ -23,8 +23,10 @@ namespace obj_viewer {
 
 	static bool mouse_pressing;
 	static std::unique_ptr<glm::vec3> last_cursor_vec3;
+	static glm::quat camera_orientation = { 1.0f, 0.0f, 0.0f, 0.0f };
 
 	static void display_callback();
+	static void idle_callback();
 	static void reshape_callback(int width, int height);
 	static void keyboard_callback(unsigned char key, int x, int y);
 	static void mouse_button_callback(int button, int state, int x, int y);
@@ -49,6 +51,7 @@ namespace obj_viewer {
 		glewInit();
 
 		glutDisplayFunc(display_callback);
+		glutIdleFunc(idle_callback);
 		glutReshapeFunc(reshape_callback);
 		glutKeyboardFunc(keyboard_callback);
 		glutMouseFunc(mouse_button_callback);
@@ -102,19 +105,23 @@ namespace obj_viewer {
 
 		const engine& engine = engine::instance();
 		const auto model_view_loc = engine.model_view_loc();
-		// TODO: add view matrix
+
+		const auto camera_origin_position = glm::vec3(0.0f, 0.0f, 4.0f);
+		const auto m_camera_origin_view = glm::lookAt(camera_origin_position, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		const auto m_camera_rotation = glm::toMat4(camera_orientation);
+		const auto m_view = m_camera_origin_view * m_camera_rotation;
 
 		for (auto& obj : engine.objs) {
 			const auto m_scale = glm::scale(*(obj->scale()));
 			const auto m_translation = glm::translate(glm::mat4(1), *(obj->position()));
 			const auto m_rotation = glm::toMat4(*(obj->orientation()));
 			const auto m_model = m_rotation * m_scale * m_translation;
+			const auto m_model_view = m_view * m_model;
 
 			for (auto& mesh : obj.get()->meshes) {
 				glBindVertexArray(mesh.vao);
-
-				glUniformMatrix4fv(model_view_loc, 1, GL_FALSE, glm::value_ptr(m_model));
-				// TODO: bind view matrix
+				
+				glUniformMatrix4fv(model_view_loc, 1, GL_FALSE, glm::value_ptr(m_model_view));
 
 				glDrawArrays(GL_TRIANGLES, 0, mesh.points.size());
 			}
@@ -123,29 +130,25 @@ namespace obj_viewer {
 		glutSwapBuffers();
 	}
 
+	static void idle_callback() {
+		const engine& engine = engine::instance();
+		const auto& obj = engine.objs[0];
+
+		const float speed = 0.0002f;
+		const glm::vec3 axis = { 0.0f, 1.0f, 0.0f };
+		const glm::quat rotation = glm::angleAxis(speed, axis);
+		obj->rotate(rotation);
+		glutPostRedisplay();
+	}
+
 	static void reshape_callback(int width, int height) {
-		const int view_size = 1;
+		const GLfloat FoV = 50.0f;
+		const GLfloat aspect = GLfloat(width == 0 ? 1 : width) / (height == 0 ? 1 : height);
+		const GLuint projection_loc = engine::instance().projection_loc();
+		const glm::mat4 m_projection = glm::perspective(glm::radians(FoV), aspect, 0.1f, 100.0f);
+		glUniformMatrix4fv(projection_loc, 1, GL_FALSE, value_ptr(m_projection));
 
 		glViewport(0, 0, width, height);
-
-		GLfloat left = -view_size, right = view_size;
-		GLfloat bottom = -view_size, top = view_size;
-		GLfloat zNear = -view_size, zFar = view_size;
-
-		GLfloat aspect = GLfloat(width == 0 ? 1 : width) / (height == 0 ? 1 : height);
-
-		if (aspect > 1) {
-			left *= aspect;
-			right *= aspect;
-		}
-		else {
-			bottom /= aspect;
-			top /= aspect;
-		}
-
-		GLuint projection_loc = engine::instance().projection_loc();
-		glm::mat4 projection = glm::ortho(left, right, bottom, top, zNear, zFar);
-		glUniformMatrix4fv(projection_loc, 1, GL_FALSE, value_ptr(projection));
 	}
 
 	static void keyboard_callback(unsigned char key, int x, int y) {
@@ -169,20 +172,18 @@ namespace obj_viewer {
 			return;
 
 		std::unique_ptr<glm::vec3> cursor_vec3 = point_to_trackball_vec3(x, y);
-		const glm::vec3 movement = *cursor_vec3 - *last_cursor_vec3;
-		float distance_pow = dot(movement, movement);
 
-		if (distance_pow) {
-			const float angle = (3.141592f / 2.0f) * sqrt(distance_pow);
-			const glm::vec3 axis = glm::cross(*last_cursor_vec3, *cursor_vec3);
-			const glm::vec3 norm = axis / sqrt(dot(axis, axis));
-			const glm::quat quaternion = glm::angleAxis(angle, norm);
-			engine::instance().objs[0].get()->rotate(quaternion);
-			// TODO: rotate view
+		const float speed = -0.05f;
+		const float angle = glm::dot(*cursor_vec3, *last_cursor_vec3) / glm::length(*cursor_vec3) / glm::length(*last_cursor_vec3);
+		const glm::vec3 axis = glm::cross(*cursor_vec3, *last_cursor_vec3);
+		const glm::vec3 norm = glm::normalize(axis);
+		const glm::quat quaternion = glm::angleAxis(speed * angle, norm);
 
-			last_cursor_vec3 = std::move(cursor_vec3);
-			glutPostRedisplay();
-		}
+		const engine& engine = engine::instance();
+		camera_orientation = quaternion * camera_orientation;
+
+		last_cursor_vec3 = std::move(cursor_vec3);
+		glutPostRedisplay();
 	}
 
 	static std::unique_ptr<glm::vec3> point_to_trackball_vec3(int x, int y) {
@@ -190,14 +191,17 @@ namespace obj_viewer {
 		std::tie(width, height) = engine::instance().window_size();
 
 		const int criteria = std::min(width, height);
+		const float _x = (2.0f * x - width) / criteria;
+		const float _y = (height - 2.0f * y) / criteria;
+		const float distance = sqrt(_x * _x + _y * _y);
 
 		glm::vec3 v;
-		v[0] = (2.0f * x - width) / criteria;
-		v[1] = (height - 2.0f * y) / criteria;
-
-		float distance = sqrt(v[0] * v[0] + v[1] * v[1]);
-		v[2] = distance < 1.0f ? cos((3.141592f / 2.0f) * distance) : 0.0f;
-		v *= 1.0 / sqrt(glm::dot(v, v));
+		if (distance < 1.0f) {
+			const float _z = sin(acos(distance));
+			v = { _x, _y, _z };
+		}
+		else
+			v = { _x / distance, _y / distance, 0 };
 
 		return std::make_unique<glm::vec3>(v);
 	}
