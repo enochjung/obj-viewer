@@ -24,6 +24,11 @@ namespace obj_viewer {
 		GLuint projection_loc() const;
 		GLuint light_loc() const;
 
+		GLuint diffuse_loc() const;
+		GLuint specular_loc() const;
+		GLuint ambient_loc() const;
+		GLuint shininess_loc() const;
+
 		std::pair<int, int> window_size() const;
 
 	private:
@@ -32,6 +37,11 @@ namespace obj_viewer {
 		GLuint _view_loc;
 		GLuint _projection_loc;
 		GLuint _light_loc;
+
+		GLuint _diffuse_loc;
+		GLuint _specular_loc;
+		GLuint _ambient_loc;
+		GLuint _shininess_loc;
 
 		engine();
 	};

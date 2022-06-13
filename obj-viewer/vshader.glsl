@@ -17,17 +17,19 @@ uniform mat4 Projection;
 uniform vec3 lightPosition;
 
 void main() { 
+	vec3 cameraPosition_world = vec3(0.0, 0.0, 4.0);
+
 	gl_Position = Projection * ModelView * vec4(vertexPosition, 1.0);
+
+	UV = vertexUV;
 
 	vertexPosition_world = (Model * vec4(vertexPosition, 1.0)).xyz;
 
+	vertexNormal_camera = (ModelView * vec4(vertexNormal, 0.0)).xyz;
+
 	vec3 vertexPosition_camera = (ModelView * vec4(vertexPosition, 1.0)).xyz;
-	cameraDirection_camera = vec3(0.0, 0.0, 0.0) - vertexPosition_camera;
+	cameraDirection_camera = vec3(0, 0, 0) - vertexPosition_camera;
 
 	vec3 lightPosition_camera = (View * vec4(lightPosition, 1.0)).xyz;
 	lightDirection_camera = lightPosition_camera + cameraDirection_camera;
-	
-	vertexNormal_camera = (ModelView * vec4(vertexNormal, 0.0)).xyz;
-	
-	UV = vertexUV;
 }

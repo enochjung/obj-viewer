@@ -18,11 +18,24 @@ namespace obj_viewer {
 		vertices(size_t size);
 	};
 
+	class material {
+	public:
+		glm::vec3 diffuse;
+		glm::vec3 specular;
+		glm::vec3 ambient;
+		float shininess;
+
+		material();
+	};
+
 	class mesh {
 	public:
 		GLuint vao;
-		GLuint vbo;
+		GLuint vertex_buffer;
+		GLuint uv_buffer;
+		GLuint normal_buffer;
 		vertices vertices;
+		material material;
 
 		mesh(size_t vertices_size);
 		void bind();

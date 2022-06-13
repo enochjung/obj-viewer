@@ -24,7 +24,7 @@ namespace obj_viewer {
 	static bool mouse_pressing;
 	static std::unique_ptr<glm::vec3> last_cursor_vec3;
 	static glm::quat camera_orientation = { 1.0f, 0.0f, 0.0f, 0.0f };
-	static glm::vec3 light_position = { 10.0f, 10.0f, 10.0f };
+	static glm::vec3 light_position = { 3.0f, 3.0f, 3.0f };
 
 	static void display_callback();
 	static void idle_callback();
@@ -75,7 +75,12 @@ namespace obj_viewer {
 		_projection_loc = glGetUniformLocation(program, "Projection");
 		_light_loc = glGetUniformLocation(program, "lightPosition");
 
-		glUniformMatrix4fv(_light_loc, 1, GL_FALSE, glm::value_ptr(light_position));
+		_diffuse_loc = glGetUniformLocation(program, "diffuse");
+		_specular_loc = glGetUniformLocation(program, "specular");
+		_ambient_loc = glGetUniformLocation(program, "ambient");
+		_shininess_loc = glGetUniformLocation(program, "shininess");
+
+		glUniform3fv(_light_loc, 1, glm::value_ptr(light_position));
 
 		//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		glClearColor(1.0, 1.0, 1.0, 1.0);
@@ -111,6 +116,22 @@ namespace obj_viewer {
 		return _light_loc;
 	}
 
+	GLuint engine::diffuse_loc() const {
+		return _diffuse_loc;
+	}
+
+	GLuint engine::specular_loc() const {
+		return _specular_loc;
+	}
+
+	GLuint engine::ambient_loc() const {
+		return _ambient_loc;
+	}
+
+	GLuint engine::shininess_loc() const {
+		return _shininess_loc;
+	}
+
 	std::pair<int, int> engine::window_size() const {
 		int width = glutGet(GLUT_WINDOW_WIDTH);
 		int height = glutGet(GLUT_WINDOW_HEIGHT);
@@ -120,12 +141,14 @@ namespace obj_viewer {
 	static void display_callback() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glMatrixMode(GL_MODELVIEW);
-
 		const engine& engine = engine::instance();
 		const auto model_view_loc = engine.model_view_loc();
 		const auto model_loc = engine.model_loc();
 		const auto view_loc = engine.view_loc();
+		const auto diffuse_loc = engine.diffuse_loc();
+		const auto specular_loc = engine.specular_loc();
+		const auto ambient_loc = engine.ambient_loc();
+		const auto shininess_loc = engine.shininess_loc();
 
 		const auto camera_origin_position = glm::vec3(0.0f, 0.0f, 4.0f);
 		const auto m_camera_origin_view = glm::lookAt(camera_origin_position, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -145,6 +168,25 @@ namespace obj_viewer {
 
 			for (auto& mesh : obj.get()->meshes) {
 				glBindVertexArray(mesh.vao);
+
+				glEnableVertexAttribArray(0);
+				glBindBuffer(GL_ARRAY_BUFFER, mesh.vertex_buffer);
+				glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+				glEnableVertexAttribArray(1);
+				glBindBuffer(GL_ARRAY_BUFFER, mesh.uv_buffer);
+				glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+				glEnableVertexAttribArray(2);
+				glBindBuffer(GL_ARRAY_BUFFER, mesh.normal_buffer);
+				glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+				glUniformMatrix4fv(model_view_loc, 1, GL_FALSE, glm::value_ptr(m_model_view));
+
+				glUniform3fv(diffuse_loc, 1, glm::value_ptr(mesh.material.diffuse));
+				glUniform3fv(specular_loc, 1, glm::value_ptr(mesh.material.specular));
+				glUniform3fv(ambient_loc, 1, glm::value_ptr(mesh.material.ambient));
+				glUniform1f(shininess_loc, mesh.material.shininess);
 
 				glDrawArrays(GL_TRIANGLES, 0, mesh.vertices.positions.size());
 			}
@@ -197,8 +239,10 @@ namespace obj_viewer {
 		std::unique_ptr<glm::vec3> cursor_vec3 = point_to_trackball_vec3(x, y);
 
 		const float speed = -0.05f;
-		const float angle = glm::dot(*cursor_vec3, *last_cursor_vec3) / glm::length(*cursor_vec3) / glm::length(*last_cursor_vec3);
+		const float angle = glm::dot(*cursor_vec3, *last_cursor_vec3);
 		const glm::vec3 axis = glm::cross(*cursor_vec3, *last_cursor_vec3);
+		if (glm::length(axis) < 0.0001f)
+			return;
 		const glm::vec3 norm = glm::normalize(axis);
 		const glm::quat quaternion = glm::angleAxis(speed * angle, norm);
 
