@@ -28,6 +28,7 @@ namespace obj_viewer {
 		GLuint specular_loc() const;
 		GLuint ambient_loc() const;
 		GLuint shininess_loc() const;
+		GLuint texture_loc() const;
 
 		std::pair<int, int> window_size() const;
 
@@ -42,6 +43,7 @@ namespace obj_viewer {
 		GLuint _specular_loc;
 		GLuint _ambient_loc;
 		GLuint _shininess_loc;
+		GLuint _texture_loc;
 
 		engine();
 	};

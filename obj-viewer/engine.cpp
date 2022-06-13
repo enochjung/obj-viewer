@@ -79,6 +79,7 @@ namespace obj_viewer {
 		_specular_loc = glGetUniformLocation(program, "specular");
 		_ambient_loc = glGetUniformLocation(program, "ambient");
 		_shininess_loc = glGetUniformLocation(program, "shininess");
+		_texture_loc  = glGetUniformLocation(program, "textureSampler");
 
 		glUniform3fv(_light_loc, 1, glm::value_ptr(light_position));
 
@@ -132,6 +133,10 @@ namespace obj_viewer {
 		return _shininess_loc;
 	}
 
+	GLuint engine::texture_loc() const {
+		return _texture_loc;
+	}
+
 	std::pair<int, int> engine::window_size() const {
 		int width = glutGet(GLUT_WINDOW_WIDTH);
 		int height = glutGet(GLUT_WINDOW_HEIGHT);
@@ -149,6 +154,7 @@ namespace obj_viewer {
 		const auto specular_loc = engine.specular_loc();
 		const auto ambient_loc = engine.ambient_loc();
 		const auto shininess_loc = engine.shininess_loc();
+		const auto texture_loc = engine.texture_loc();
 
 		const auto camera_origin_position = glm::vec3(0.0f, 0.0f, 4.0f);
 		const auto m_camera_origin_view = glm::lookAt(camera_origin_position, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
@@ -187,6 +193,10 @@ namespace obj_viewer {
 				glUniform3fv(specular_loc, 1, glm::value_ptr(mesh.material.specular));
 				glUniform3fv(ambient_loc, 1, glm::value_ptr(mesh.material.ambient));
 				glUniform1f(shininess_loc, mesh.material.shininess);
+				
+				glActiveTexture(GL_TEXTURE0);
+				glBindTexture(GL_TEXTURE_2D, mesh.texture_id);
+				glUniform1i(texture_loc, 0);
 
 				glDrawArrays(GL_TRIANGLES, 0, mesh.vertices.positions.size());
 			}

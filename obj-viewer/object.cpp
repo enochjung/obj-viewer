@@ -4,6 +4,9 @@
 #include <algorithm> // min max
 #include <iostream> // cout
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 namespace obj_viewer {
 
 	vertices::vertices(size_t size) : positions(size), normals(size), texture_coordinates(size) {
@@ -14,11 +17,49 @@ namespace obj_viewer {
 		// nop
 	}
 
-	mesh::mesh(size_t vertices_size) : vao(0), vertex_buffer(0), uv_buffer(0), normal_buffer(0), vertices(vertices_size), material() {
+	mesh::mesh(size_t vertices_size) : vao(0), vertex_buffer(0), uv_buffer(0), normal_buffer(0), texture_id(0), vertices(vertices_size), material() {
 		// nop
 	}
 
-	void mesh::bind() {
+	void mesh::load_texture(const std::string& texture_name, const std::string texture_directory) {
+		int w, h;
+		int comp;
+
+		if (texture_name.length() > 0) {
+			const std::string texture_filepath = texture_directory + texture_name;
+			
+			stbi_set_flip_vertically_on_load(true); 
+			unsigned char* image = stbi_load(texture_filepath.c_str(), &w, &h, &comp, STBI_default);
+			if (image != NULL) {
+				glGenTextures(1, &texture_id);
+				glBindTexture(GL_TEXTURE_2D, texture_id);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+				if (comp == 3)
+					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+				else if (comp == 4)
+					glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, image);
+				glBindTexture(GL_TEXTURE_2D, 0);
+				glGenerateMipmap(GL_TEXTURE_2D);
+				stbi_image_free(image);
+
+				return;
+			}
+		}
+
+		unsigned char white[3] = { 255, 255, 255 };
+		glGenTextures(1, &texture_id);
+		glBindTexture(GL_TEXTURE_2D, texture_id);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 1, 1, 0, GL_RGB, GL_UNSIGNED_BYTE, white);
+		glBindTexture(GL_TEXTURE_2D, 0);
+		glGenerateMipmap(GL_TEXTURE_2D);
+	}
+
+	void mesh::bind_buffer() {
 		glGenVertexArrays(1, &vao);
 		glBindVertexArray(vao);
 
@@ -35,7 +76,7 @@ namespace obj_viewer {
 		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * vertices.normals.size(), &vertices.normals[0], GL_STATIC_DRAW);
 	}
 
-	object::object(const tinyobj::attrib_t& attrib, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials) {
+	object::object(const tinyobj::attrib_t& attrib, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials, const std::string texture_directory) {
 		for (size_t s = 0; s < shapes.size(); s++) {
 			const size_t vertices_size = shapes[s].mesh.num_face_vertices.size() * 3;
 			mesh mesh(vertices_size);
@@ -86,7 +127,9 @@ namespace obj_viewer {
 			mesh.material.ambient = { material.ambient[0], material.ambient[1], material.ambient[2] };
 			mesh.material.shininess = material.shininess;
 
-			mesh.bind();
+			mesh.bind_buffer();
+			//if (material.diffuse_texname.length() > 0)
+				mesh.load_texture(material.diffuse_texname, texture_directory);
 			this->meshes.push_back(mesh);
 		}
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <string> // string
 #include <vector> // vector
 #include <memory> // unique_ptr
 #include <GL/glew.h> // GLuint
@@ -34,18 +35,20 @@ namespace obj_viewer {
 		GLuint vertex_buffer;
 		GLuint uv_buffer;
 		GLuint normal_buffer;
+		GLuint texture_id;
 		vertices vertices;
 		material material;
 
 		mesh(size_t vertices_size);
-		void bind();
+		void load_texture(const std::string& texture_name, const std::string texture_directory);
+		void bind_buffer();
 	};
 
 	class object {
 	public:
 		std::vector<mesh> meshes;
 
-		object(const tinyobj::attrib_t& attrib, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials);
+		object(const tinyobj::attrib_t& attrib, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials, const std::string texture_directory);
 		void rotate(const glm::quat& rotation);
 
 		std::unique_ptr<glm::vec3> scale() const;
@@ -58,5 +61,6 @@ namespace obj_viewer {
 		glm::quat _orientation;
 
 		std::pair<glm::vec3, glm::vec3> minmax() const;
+		int load_diffuse_texture(const tinyobj::material_t& material, const std::string texture_directory);
 	};
 }

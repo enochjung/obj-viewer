@@ -161,6 +161,7 @@
   <ItemGroup>
     <ClInclude Include="engine.h" />
     <ClInclude Include="object.h" />
+    <ClInclude Include="stb_image.h" />
     <ClInclude Include="tiny_obj_loader.h" />
   </ItemGroup>
   <ItemGroup>
