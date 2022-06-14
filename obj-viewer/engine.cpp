@@ -2,17 +2,15 @@
 
 #include <GL/glew.h>
 #include <GL/glut.h>
+#include <GL/freeglut.h> // glutMouseWheelFunc
 #include <glm/vec3.hpp> // vec3
 #include <glm/mat4x4.hpp> // mat4
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/transform.hpp> // scale translate
 #include <glm/gtx/quaternion.hpp> // quat
-//#include "OBJ_Loader.h"
 
 #include <iostream> // cout
-#include <numeric>
-#include <ranges>
 #include <cmath> // sin cos
 
 #define BUFFER_OFFSET(offset) ((GLvoid*)(offset))
@@ -24,7 +22,7 @@ namespace obj_viewer {
 	static bool mouse_pressing;
 	static std::unique_ptr<glm::vec3> last_cursor_vec3;
 	static glm::quat camera_orientation = { 1.0f, 0.0f, 0.0f, 0.0f };
-	static glm::vec3 light_position = { 3.0f, 3.0f, 3.0f };
+	static glm::vec3 light_position = { 100.0f, 100.0f, 100.0f };
 
 	static void display_callback();
 	static void idle_callback();
@@ -32,6 +30,7 @@ namespace obj_viewer {
 	static void keyboard_callback(unsigned char key, int x, int y);
 	static void mouse_button_callback(int button, int state, int x, int y);
 	static void mouse_motion_callback(int x, int y);
+	static void wheel_callback(int wheel, int direction, int x, int y);
 	static std::unique_ptr<glm::vec3> point_to_trackball_vec3(int x, int y);
 
 	engine::engine() : _model_view_loc(0), _projection_loc(0) {
@@ -57,6 +56,7 @@ namespace obj_viewer {
 		glutKeyboardFunc(keyboard_callback);
 		glutMouseFunc(mouse_button_callback);
 		glutMotionFunc(mouse_motion_callback);
+		glutMouseWheelFunc(wheel_callback);
 
 		GLuint vao;
 		glGenVertexArrays(1, &vao);
@@ -79,7 +79,7 @@ namespace obj_viewer {
 		_specular_loc = glGetUniformLocation(program, "specular");
 		_ambient_loc = glGetUniformLocation(program, "ambient");
 		_shininess_loc = glGetUniformLocation(program, "shininess");
-		_texture_loc  = glGetUniformLocation(program, "textureSampler");
+		_texture_loc = glGetUniformLocation(program, "textureSampler");
 
 		glUniform3fv(_light_loc, 1, glm::value_ptr(light_position));
 
@@ -193,7 +193,7 @@ namespace obj_viewer {
 				glUniform3fv(specular_loc, 1, glm::value_ptr(mesh.material.specular));
 				glUniform3fv(ambient_loc, 1, glm::value_ptr(mesh.material.ambient));
 				glUniform1f(shininess_loc, mesh.material.shininess);
-				
+
 				glActiveTexture(GL_TEXTURE0);
 				glBindTexture(GL_TEXTURE_2D, mesh.texture_id);
 				glUniform1i(texture_loc, 0);
@@ -236,7 +236,8 @@ namespace obj_viewer {
 			if (state == GLUT_DOWN) {
 				mouse_pressing = true;
 				last_cursor_vec3 = point_to_trackball_vec3(x, y);
-			} else {
+			}
+			else {
 				mouse_pressing = false;
 			}
 		}
@@ -260,6 +261,18 @@ namespace obj_viewer {
 		camera_orientation = quaternion * camera_orientation;
 
 		last_cursor_vec3 = std::move(cursor_vec3);
+		glutPostRedisplay();
+	}
+
+	static void wheel_callback(int wheel, int direction, int x, int y)
+	{
+		const float scale_delta = 0.95f;
+		const engine& engine = engine::instance();
+
+		if (direction > 0)
+			engine.objs[0]->scaling(1 / scale_delta);
+		else
+			engine.objs[0]->scaling(scale_delta);
 		glutPostRedisplay();
 	}
 
