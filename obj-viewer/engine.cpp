@@ -165,7 +165,7 @@ namespace obj_viewer {
 			const auto m_scale = glm::scale(*(obj->scale()));
 			const auto m_translation = glm::translate(glm::mat4(1), *(obj->position()));
 			const auto m_rotation = glm::toMat4(*(obj->orientation()));
-			const auto m_model = m_rotation * m_scale * m_translation;
+			const auto m_model = m_translation * m_scale * m_rotation;
 			const auto m_model_view = m_view * m_model;
 
 			glUniformMatrix4fv(model_view_loc, 1, GL_FALSE, glm::value_ptr(m_model_view));
@@ -206,13 +206,12 @@ namespace obj_viewer {
 	}
 
 	static void idle_callback() {
-		const engine& engine = engine::instance();
-		const auto& obj = engine.objs[0];
-
 		const float speed = 0.0002f;
 		const glm::vec3 axis = { 0.0f, 1.0f, 0.0f };
 		const glm::quat rotation = glm::angleAxis(speed, axis);
-		obj->rotate(rotation);
+		const engine& engine = engine::instance();
+		for (const auto& obj : engine.objs)
+			obj->rotate(rotation);
 		glutPostRedisplay();
 	}
 
@@ -268,11 +267,12 @@ namespace obj_viewer {
 	{
 		const float scale_delta = 0.95f;
 		const engine& engine = engine::instance();
-
-		if (direction > 0)
-			engine.objs[0]->scaling(1 / scale_delta);
-		else
-			engine.objs[0]->scaling(scale_delta);
+		for (const auto& obj : engine.objs) {
+			if (direction > 0)
+				obj->scaling(1 / scale_delta);
+			else
+				obj->scaling(scale_delta);
+		}
 		glutPostRedisplay();
 	}
 

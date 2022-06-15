@@ -49,8 +49,9 @@ namespace obj_viewer {
 		std::vector<mesh> meshes;
 
 		object(const tinyobj::attrib_t& attrib, const std::vector<tinyobj::shape_t>& shapes, const std::vector<tinyobj::material_t>& materials, const std::string texture_directory);
-		void rotate(const glm::quat& rotation);
 		void scaling(float scale);
+		void move(const glm::vec3& distance);
+		void rotate(const glm::quat& rotation);
 
 		std::unique_ptr<glm::vec3> scale() const;
 		std::unique_ptr<glm::vec3> position() const;

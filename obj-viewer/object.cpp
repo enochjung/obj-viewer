@@ -1,6 +1,7 @@
 #include "object.h"
 
 #include <algorithm> // min max
+#include <iostream>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -126,22 +127,25 @@ namespace obj_viewer {
 		const float scale = std::min({ sx, sy, sz });
 		_scale = { scale, scale, scale };
 
-		const float dx = (minmax.first.x + minmax.second.x) * -0.5f;
-		const float dy = (minmax.first.y + minmax.second.y) * -0.5f;
-		const float dz = (minmax.first.z + minmax.second.z) * -0.5f;
+		const float dx = ((minmax.first.x + minmax.second.x) * -0.5f) * scale;
+		const float dy = ((minmax.first.y + minmax.second.y) * -0.5f) * scale;
+		const float dz = ((minmax.first.z + minmax.second.z) * -0.5f) * scale;
 		_position = { dx, dy, dz };
 
 		_orientation = { 1.0f, 0.0f, 0.0f, 0.0f };
 	}
 
-	void object::rotate(const glm::quat& rotation) {
-		_orientation = rotation * _orientation;
+	void object::scaling(float scale) {
+		_scale *= scale;
 	}
 
-	void object::scaling(float scale) {
-		_scale.x *= scale;
-		_scale.y *= scale;
-		_scale.z *= scale;
+	void object::move(const glm::vec3& distance) {
+		_position += distance;
+		std::cout << "position.x : " << _position.x << '\n';
+	}
+
+	void object::rotate(const glm::quat& rotation) {
+		_orientation = rotation * _orientation;
 	}
 
 	std::unique_ptr<glm::vec3> object::scale() const {
@@ -157,11 +161,8 @@ namespace obj_viewer {
 	}
 
 	std::pair<glm::vec3, glm::vec3> object::minmax() const {
-		static bool initialized = false;
-		static std::pair<glm::vec3, glm::vec3> result;
-
-		if (initialized)
-			return result;
+		bool initialized = false;
+		std::pair<glm::vec3, glm::vec3> result;
 
 		for (const mesh m : meshes) {
 			for (const glm::vec3& point : m.vertices.positions) {
