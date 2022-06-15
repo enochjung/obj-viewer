@@ -36,7 +36,7 @@ std::unique_ptr<object> read_obj(const std::string& file_directory) {
 }
 
 int main(int argc, char** argv) {
-	for (int i = 0; i < argc; ++i)
+	for (int i = 1; i < argc; ++i)
 		std::cout << "argc[" << i << "] : " << argv[i] << '\n';
 
 	engine& engine = engine::instance();

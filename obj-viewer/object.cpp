@@ -1,7 +1,6 @@
 #include "object.h"
 
 #include <algorithm> // min max
-#include <iostream>
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -141,7 +140,6 @@ namespace obj_viewer {
 
 	void object::move(const glm::vec3& distance) {
 		_position += distance;
-		std::cout << "position.x : " << _position.x << '\n';
 	}
 
 	void object::rotate(const glm::quat& rotation) {
